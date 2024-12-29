@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Falling Balls</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    <script>
+        // 初始化画布和物理引擎
+        const canvas = document.getElementById('canvas');
+        const scale = 2;
+        canvas.width = window.innerWidth * scale;
+        canvas.height = window.innerHeight * scale;
+        canvas.style.width = `${window.innerWidth}px`;
+        canvas.style.height = `${window.innerHeight}px`;
+
+        const engine = Matter.Engine.create();
+        const render = Matter.Render.create({
+            canvas: canvas,
+            engine: engine,
+            options: {
+                width: window.innerWidth * scale,
+                height: window.innerHeight * scale,
+                wireframes: false,
+                background: '#000'
+            }
+        });
+
+        // 创建边界
+        const ground = Matter.Bodies.rectangle(
+            window.innerWidth * scale / 2,
+            window.innerHeight * scale,
+            window.innerWidth * scale,
+            60,
+            { isStatic: true, render: { visible: false } }
+        );
+        
+        const leftWall = Matter.Bodies.rectangle(
+            0,
+            window.innerHeight * scale / 2,
+            60,
+            window.innerHeight * scale * 2,
+            { isStatic: true, render: { visible: false } }
+        );
+
+        const rightWall = Matter.Bodies.rectangle(
+            window.innerWidth * scale,
+            window.innerHeight * scale / 2,
+            60,
+            window.innerHeight * scale * 2,
+            { isStatic: true, render: { visible: false } }
+        );
+
+        Matter.World.add(engine.world, [ground, leftWall, rightWall]);
+
+        // 预加载小球图片
+        const ballImage1 = new Image();
+        const ballImage2 = new Image();
+        ballImage1.crossOrigin = "Anonymous";
+        ballImage2.crossOrigin = "Anonymous";
+        ballImage1.src = 'https://i.imgur.com/czivdyY.png?original';  // 80%概率
+        ballImage2.src = 'https://i.imgur.com/LhLiuUf.png?original';  // 20%概率
+
+        // 创建小球
+        function createBall(x, y, imageType) {
+            const ball = Matter.Bodies.circle(x, y, 19 * scale, {
+                restitution: 0.7,
+                friction: 0.08,
+                render: {
+                    sprite: {
+                        texture: imageType.src,
+                        xScale: 0.5 * scale,
+                        yScale: 0.5 * scale
+                    }
+                }
+            });
+            ball.isClickable = true;
+            return ball;
+        }
+
+        function getRandomBallImage() {
+            return Math.random() < 0.8 ? ballImage1 : ballImage2;
+        }
+
+        // 游戏主逻辑
+        function startGame() {
+            let ballCount = 0;
+            let totalGenerated = 0;
+            const maxBalls = 40;
+            const safeMargin = 60 * scale;
+
+            function generateBall() {
+                if (ballCount >= 20 || totalGenerated >= maxBalls) return;
+                const ball = createBall(
+                    Math.random() * (window.innerWidth * scale - 2 * safeMargin) + safeMargin,
+                    -50 * scale,
+                    getRandomBallImage()
+                );
+                Matter.World.add(engine.world, [ball]);
+                ballCount++;
+                totalGenerated++;
+            }
+
+            const generationInterval = setInterval(() => {
+                if (ballCount < 20 && totalGenerated < maxBalls) {
+                    generateBall();
+                }
+            }, 3000);
+
+            Matter.Events.on(mouseConstraint, 'mousedown', function(event) {
+                const bodies = Matter.Query.point(engine.world.bodies, event.mouse.position);
+                bodies.forEach(body => {
+                    if (body.isClickable) {
+                        Matter.World.remove(engine.world, body);
+                        ballCount--;
+                    }
+                });
+            });
+
+            generateBall();
+        }
+
+        // 初始化鼠标控制
+        const mouse = Matter.Mouse.create(render.canvas);
+        const mouseConstraint = Matter.MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: { render: { visible: false } }
+        });
+        Matter.World.add(engine.world, mouseConstraint);
+        render.mouse = mouse;
+
+        // 窗口大小调整
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth * scale;
+            canvas.height = window.innerHeight * scale;
+            canvas.style.width = `${window.innerWidth}px`;
+            canvas.style.height = `${window.innerHeight}px`;
+            render.options.width = window.innerWidth * scale;
+            render.options.height = window.innerHeight * scale;
+            Matter.Body.setPosition(ground,
+                Matter.Vector.create(window.innerWidth * scale / 2, window.innerHeight * scale)
+            );
+            Matter.Body.setPosition(rightWall,
+                Matter.Vector.create(window.innerWidth * scale, window.innerHeight * scale / 2)
+            );
+        });
+
+        // 图片加载处理
+        let loadedImages = 0;
+        function onImageLoad() {
+            loadedImages++;
+            if (loadedImages === 2) startGame();
+        }
+        ballImage1.onload = onImageLoad;
+        ballImage2.onload = onImageLoad;
+        ballImage1.onerror = () => console.error('Failed to load image 1');
+        ballImage2.onerror = () => console.error('Failed to load image 2');
+
+        // 启动物理引擎
+        Matter.Engine.run(engine);
+        Matter.Render.run(render);
+    </script>
+</body>
+</html>
